@@ -27,11 +27,12 @@ public class NiftyProxyCreator extends NiftyProxyManager {
 	private static final Logger log = LoggerFactory.getLogger(NiftyProxyCreator.class);
 
 	@Override
-	public void controllServer(String[] srvInfo) {
+	public void controllServer(String[] srvInfo, int lineNum) {
 		try {
-			RunInstancesResult result = mkServer(srvInfo, counter.getLineNum());
+			RunInstancesResult result = mkServer(srvInfo, lineNum);
 			if (result != null && result.getReservation() != null) {
-				log.info("InstanceID {} => サーバ作成完了。", srvInfo[INDEX_INSTANCE_ID]);
+				log.info("InstanceID {} => サーバ作成完了。 IP => {}", srvInfo[INDEX_INSTANCE_ID],
+						result.getReservation().getInstances().get(0).getIpAddress());
 				counter.addSuccessCnt();
 			} else {
 				log.error("InstanceID {} => サーバ作成失敗。", srvInfo[INDEX_INSTANCE_ID]);
@@ -126,10 +127,5 @@ public class NiftyProxyCreator extends NiftyProxyManager {
 		} catch (Exception e) {
 			return false;
 		}
-	}
-
-	@Override
-	public void controllServer2() {
-		// Do nothing
 	}
 }

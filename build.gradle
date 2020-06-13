@@ -59,13 +59,15 @@ task deleteDependencies(type: Delete) {
   delete dependenciesCopyTargetDirName
 }
 
-// 繝輔ぃ繧､繝ｫ縺ｮ繧ｳ繝斐�ｼ蜈�(繧ｫ繝ｬ繝ｳ繝医°繧峨�ｮ逶ｸ蟇ｾPATH)
+// 郢晁ｼ斐＜郢ｧ�ｽ､郢晢ｽｫ邵ｺ�ｽｮ郢ｧ�ｽｳ郢晄鱒�ｿｽ�ｽｼ陷茨ｿｽ(郢ｧ�ｽｫ郢晢ｽｬ郢晢ｽｳ郢晏現ﾂｰ郢ｧ蟲ｨ�ｿｽ�ｽｮ騾ｶ�ｽｸ陝�ｽｾPATH)
 def dependJarCopyTo = 'jar'
-// 繧ｳ繝斐�ｼ蜈医↓縺ゅｋ繝輔ぃ繧､繝ｫ繧偵＞縺｣縺溘ｓ蜑企勁
-task delDependJar << {
-    delete dependJarCopyTo
+// 郢ｧ�ｽｳ郢晄鱒�ｿｽ�ｽｼ陷亥現竊鍋ｸｺ繧��ｽ狗ｹ晁ｼ斐＜郢ｧ�ｽ､郢晢ｽｫ郢ｧ蛛ｵ�ｼ樒ｸｺ�ｽ｣邵ｺ貅假ｽ楢恆莨∝求
+task delDependJar {
+	doLast {
+		delete dependJarCopyTo
+	}
 }
-// 萓晏ｭ倥☆繧九Λ繧､繝悶Λ繝ｪjar繧呈欠螳壹＠縺溘ョ繧｣繝ｬ繧ｯ繝医Μ縺ｫ繧ｳ繝斐�ｼ縺吶ｋ
+// 關捺剌�ｽｭ蛟･笘�郢ｧ荵斟帷ｹｧ�ｽ､郢晄じﾎ帷ｹ晢ｽｪjar郢ｧ蜻域ｬ�陞ｳ螢ｹ�ｼ�邵ｺ貅倥Ι郢ｧ�ｽ｣郢晢ｽｬ郢ｧ�ｽｯ郢晏現ﾎ懃ｸｺ�ｽｫ郢ｧ�ｽｳ郢晄鱒�ｿｽ�ｽｼ邵ｺ蜷ｶ�ｽ�
 task getDependJar(dependsOn: delDependJar) {
     doLast {
         configurations.compile.each {
@@ -75,7 +77,7 @@ task getDependJar(dependsOn: delDependJar) {
                 into dependJarCopyTo
             }
         }
-        println "----- 莉･荳九�ｮjar繝輔ぃ繧､繝ｫ繧貞叙蠕励＠縺ｾ縺励◆ -----"
+        println "----- 闔会ｽ･闕ｳ荵晢ｿｽ�ｽｮjar郢晁ｼ斐＜郢ｧ�ｽ､郢晢ｽｫ郢ｧ雋槫徐陟募干�ｼ�邵ｺ�ｽｾ邵ｺ蜉ｱ笳� -----"
         FileCollection copyFiles = files { file(dependJarCopyTo).listFiles() }
         copyFiles.each {File file -> println file.name}
     }

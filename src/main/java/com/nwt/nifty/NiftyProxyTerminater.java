@@ -23,17 +23,11 @@ import com.nifty.cloud.sdk.server.model.TerminateInstancesResult;
 public class NiftyProxyTerminater extends NiftyProxyManager {
 
 	private static final Logger log = LoggerFactory.getLogger(NiftyProxyTerminater.class);
-	private List<TerminateInstance> terminateInstanceList = new ArrayList<TerminateInstance>();
-	private boolean is1stCheck = true;
 
 	@Override
-	public void controllServer(String[] srvInfo) {
+	public void controllServer(String[] srvInfo, int lineNum) {
 		try {
-			if (is1stCheck) {
-				log.info("------- サーバステータスチェック開始 -------");
-				is1stCheck = false;
-			}
-			checkServerStatus(srvInfo, counter.getLineNum());
+			checkServerStatus(srvInfo, lineNum);
 		} catch (Exception e) {
 			log.error("InstanceID {} => 想定外エラー発生。処理の対象外とします。", srvInfo[INDEX_INSTANCE_ID], e);
 			counter.addErrorCnt();
@@ -75,8 +69,9 @@ public class NiftyProxyTerminater extends NiftyProxyManager {
 			log.info("InstanceID {} => サーバのステータス[起動中]", srvInfo[INDEX_INSTANCE_ID]);
 			if (stopInstances(srvInfo, client)) {
 				log.info("InstanceID {} => サーバ停止リクエスト送信完了。", srvInfo[INDEX_INSTANCE_ID]);
-				terminateInstanceList.add(
-						new TerminateInstance(client, srvInfo[INDEX_INSTANCE_ID]));
+				if (checkInstanceStopped(srvInfo[INDEX_INSTANCE_ID], client)) {
+					terminateInstances(srvInfo[INDEX_INSTANCE_ID], client);
+				}
 			} else {
 				log.error("InstanceID {} => サーバの停止に失敗しました。削除処理の対象外とします。", srvInfo[INDEX_INSTANCE_ID]);
 				counter.addErrorCnt();
@@ -84,8 +79,7 @@ public class NiftyProxyTerminater extends NiftyProxyManager {
 
 		} else if (state.getCode() == SRV_STATE_STOPPED) {
 			log.info("InstanceID {} => サーバのステータス[停止中]。", srvInfo[INDEX_INSTANCE_ID]);
-			terminateInstanceList.add(
-					new TerminateInstance(client, srvInfo[INDEX_INSTANCE_ID]));
+			terminateInstances(srvInfo[INDEX_INSTANCE_ID], client);
 
 		} else {
 			log.warn("InstanceID {} => サーバのステータス[{}]。起動中でも停止中でもないため、処理の対象外とします。",
@@ -147,16 +141,6 @@ public class NiftyProxyTerminater extends NiftyProxyManager {
 		return request;
 	}
 
-	@Override
-	public void controllServer2() {
-		log.info("------- サーバ削除処理開始 -------");
-		for (TerminateInstance instance : terminateInstanceList) {
-			if (checkInstanceStopped(instance.instanceId, instance.client)) {
-				terminateInstances(instance.instanceId, instance.client);
-			}
-		}
-	}
-
 	private boolean checkInstanceStopped(String instanceId, NiftyServerClient client) {
 		DescribeInstancesRequest request = mkDescribeRequest(instanceId);
 		try {
@@ -194,7 +178,7 @@ public class NiftyProxyTerminater extends NiftyProxyManager {
 		log.info("InstanceID {} => サーバの停止処理中。最大1分間、停止を待ちます。", instanceId);
 
 		while (true) {
-			Thread.sleep(1000);
+			Thread.sleep(5000);
 			result = client.describeInstances(request);
 			state = result.getReservations().get(0).getInstances().get(0).getState();
 			if (state.getCode() == SRV_STATE_STOPPED) {
@@ -209,17 +193,6 @@ public class NiftyProxyTerminater extends NiftyProxyManager {
 				counter.addErrorCnt();
 				return false;
 			}
-		}
-	}
-
-	private static class TerminateInstance {
-
-		NiftyServerClient client;
-		String instanceId;
-
-		public TerminateInstance(NiftyServerClient client, String instanceId) {
-			this.client = client;
-			this.instanceId = instanceId;
 		}
 	}
 }
