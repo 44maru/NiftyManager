@@ -1,10 +1,10 @@
-package com.nwt.nifty;
+package com.nwt.nifty.task;
 
-import static com.nwt.constants.CsvIndexConstants.*;
-import static com.nwt.constants.NiftyConstatns.*;
+import static com.nwt.nifty.constants.CsvIndexConstants.INDEX_INSTANCE_ID;
+import static com.nwt.nifty.constants.CsvIndexConstants.INDEX_REGION;
+import static com.nwt.nifty.constants.NiftyConstatns.ENDPOINT_MAP;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -14,51 +14,47 @@ import com.nifty.cloud.sdk.server.NiftyServerClient;
 import com.nifty.cloud.sdk.server.model.DescribeInstancesRequest;
 import com.nifty.cloud.sdk.server.model.DescribeInstancesResult;
 import com.nifty.cloud.sdk.server.model.InstanceState;
-import com.nifty.cloud.sdk.server.model.Reservation;
-import com.nifty.cloud.sdk.server.model.StopInstancesRequest;
-import com.nifty.cloud.sdk.server.model.StopInstancesResult;
+import com.nwt.nifty.constants.TaskResultStatus;
+import com.nwt.nifty.util.NiftyProxyUtil;
 
-public class NiftyProxyStatus extends NiftyProxyManager {
+public class NiftyProxyStatus implements NiftyProxyTaskIF {
 
 	private static final Logger log = LoggerFactory.getLogger(NiftyProxyStatus.class);
 
-	@Override
-	public void controllServer(String[] srvInfo, int lineNum) {
+	public TaskResultStatus runTask(String[] srvInfo, int lineNum) {
 		try {
-			showStatus(srvInfo, lineNum);
+			return showStatus(srvInfo, lineNum);
 		} catch (Exception e) {
 			log.error("InstanceID {} => 想定外エラー発生。", srvInfo[INDEX_INSTANCE_ID], e);
-			counter.addErrorCnt();
+			return TaskResultStatus.ERROR;
 		}
 	}
 
-	public void showStatus(String[] srvInfo, int lineNum) {
+	public TaskResultStatus showStatus(String[] srvInfo, int lineNum) {
 
 		String endpoint = ENDPOINT_MAP.get(srvInfo[INDEX_REGION]);
 
 		if (endpoint == null) {
-			log.warn("{}行目, リージョン'{}'は、定義外の値です。処理対象外とします。", lineNum + 1, srvInfo[INDEX_REGION]);
+			log.warn("{}行目, リージョン'{}'は、定義外の値です。処理対象外とします。", lineNum, srvInfo[INDEX_REGION]);
 			log.info("利用可能なリージョンは以下です。");
 			for (String region : ENDPOINT_MAP.keySet()) {
 				log.info(region);
 			}
-			counter.addSkipCnt();
-			return;
+			return TaskResultStatus.SKIP;
 		}
 
-		NiftyServerClient client = mkClient(srvInfo, endpoint);
+		NiftyServerClient client = NiftyProxyUtil.mkClient(srvInfo, endpoint);
 		DescribeInstancesRequest request = mkDescribeRequest(srvInfo[INDEX_INSTANCE_ID]);
 		DescribeInstancesResult result = client.describeInstances(request);
 
 		if (result.getReservations() != null) {
 			InstanceState state = result.getReservations().get(0).getInstances().get(0).getState();
 			String ip = result.getReservations().get(0).getInstances().get(0).getIpAddress();
-			log.info("{},{},{}",
-					srvInfo[INDEX_INSTANCE_ID], state, ip);
-			counter.addErrorCnt();
+			log.info("{},{},{}", srvInfo[INDEX_INSTANCE_ID], state, ip);
+			return TaskResultStatus.SUCCESS;
 		} else {
 			log.error("InstanceID {} => サーバステータス取得失敗。処理の対象外とします。", srvInfo[INDEX_INSTANCE_ID]);
-			counter.addErrorCnt();
+			return TaskResultStatus.ERROR;
 		}
 	}
 

@@ -1,7 +1,10 @@
-package com.nwt.nifty;
+package com.nwt.nifty.task;
 
-import static com.nwt.constants.CsvIndexConstants.*;
-import static com.nwt.constants.NiftyConstatns.*;
+import static com.nwt.nifty.constants.CsvIndexConstants.INDEX_INSTANCE_ID;
+import static com.nwt.nifty.constants.CsvIndexConstants.INDEX_REGION;
+import static com.nwt.nifty.constants.NiftyConstatns.ENDPOINT_MAP;
+import static com.nwt.nifty.constants.NiftyConstatns.SRV_STATE_RUNNING;
+import static com.nwt.nifty.constants.NiftyConstatns.SRV_STATE_STOPPED;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -19,48 +22,49 @@ import com.nifty.cloud.sdk.server.model.StopInstancesRequest;
 import com.nifty.cloud.sdk.server.model.StopInstancesResult;
 import com.nifty.cloud.sdk.server.model.TerminateInstancesRequest;
 import com.nifty.cloud.sdk.server.model.TerminateInstancesResult;
+import com.nwt.nifty.constants.TaskResultStatus;
+import com.nwt.nifty.util.NiftyProxyUtil;
 
-public class NiftyProxyTerminater extends NiftyProxyManager {
+public class NiftyProxyTerminater implements NiftyProxyTaskIF {
 
 	private static final Logger log = LoggerFactory.getLogger(NiftyProxyTerminater.class);
 
-	@Override
-	public void controllServer(String[] srvInfo, int lineNum) {
+	public TaskResultStatus runTask(String[] srvInfo, int lineNum) {
 		try {
-			checkServerStatus(srvInfo, lineNum);
+			return terminateServers(srvInfo, lineNum);
 		} catch (Exception e) {
 			log.error("InstanceID {} => 想定外エラー発生。処理の対象外とします。", srvInfo[INDEX_INSTANCE_ID], e);
-			counter.addErrorCnt();
+			return TaskResultStatus.ERROR;
 		}
 	}
 
-	public void checkServerStatus(String[] srvInfo, int lineNum) {
+	public TaskResultStatus terminateServers(String[] srvInfo, int lineNum) {
 
 		String endpoint = ENDPOINT_MAP.get(srvInfo[INDEX_REGION]);
 
 		if (endpoint == null) {
-			log.warn("{}行目, リージョン'{}'は、定義外の値です。処理対象外とします。", lineNum + 1, srvInfo[INDEX_REGION]);
+			log.warn("{}行目, リージョン'{}'は、定義外の値です。処理対象外とします。", lineNum, srvInfo[INDEX_REGION]);
 			log.info("利用可能なリージョンは以下です。");
 			for (String region : ENDPOINT_MAP.keySet()) {
 				log.info(region);
 			}
-			counter.addSkipCnt();
-			return;
+			return TaskResultStatus.SKIP;
 		}
 
-		NiftyServerClient client = mkClient(srvInfo, endpoint);
+		NiftyServerClient client = NiftyProxyUtil.mkClient(srvInfo, endpoint);
 		DescribeInstancesRequest request = mkDescribeRequest(srvInfo[INDEX_INSTANCE_ID]);
 		DescribeInstancesResult result = client.describeInstances(request);
 
 		if (result.getReservations() != null) {
-			nextActionForSrvStatus(srvInfo, client, result);
+			return terminateServers(srvInfo, client, result);
 		} else {
 			log.error("InstanceID {} => サーバステータス取得失敗。処理の対象外とします。", srvInfo[INDEX_INSTANCE_ID]);
-			counter.addErrorCnt();
+			return TaskResultStatus.ERROR;
 		}
 	}
 
-	private void nextActionForSrvStatus(String[] srvInfo, NiftyServerClient client, DescribeInstancesResult result) {
+	private TaskResultStatus terminateServers(String[] srvInfo, NiftyServerClient client,
+			DescribeInstancesResult result) {
 		List<Reservation> reservations = result.getReservations();
 
 		InstanceState state = reservations.get(0).getInstances().get(0).getState();
@@ -70,21 +74,21 @@ public class NiftyProxyTerminater extends NiftyProxyManager {
 			if (stopInstances(srvInfo, client)) {
 				log.info("InstanceID {} => サーバ停止リクエスト送信完了。", srvInfo[INDEX_INSTANCE_ID]);
 				if (checkInstanceStopped(srvInfo[INDEX_INSTANCE_ID], client)) {
-					terminateInstances(srvInfo[INDEX_INSTANCE_ID], client);
+					return terminateInstances(srvInfo[INDEX_INSTANCE_ID], client);
 				}
+				return TaskResultStatus.ERROR;
 			} else {
 				log.error("InstanceID {} => サーバの停止に失敗しました。削除処理の対象外とします。", srvInfo[INDEX_INSTANCE_ID]);
-				counter.addErrorCnt();
+				return TaskResultStatus.ERROR;
 			}
 
 		} else if (state.getCode() == SRV_STATE_STOPPED) {
 			log.info("InstanceID {} => サーバのステータス[停止中]。", srvInfo[INDEX_INSTANCE_ID]);
-			terminateInstances(srvInfo[INDEX_INSTANCE_ID], client);
+			return terminateInstances(srvInfo[INDEX_INSTANCE_ID], client);
 
 		} else {
-			log.warn("InstanceID {} => サーバのステータス[{}]。起動中でも停止中でもないため、処理の対象外とします。",
-					srvInfo[INDEX_INSTANCE_ID], state);
-			counter.addSkipCnt();
+			log.warn("InstanceID {} => サーバのステータス[{}]。起動中でも停止中でもないため、処理の対象外とします。", srvInfo[INDEX_INSTANCE_ID], state);
+			return TaskResultStatus.SKIP;
 		}
 	}
 
@@ -114,22 +118,22 @@ public class NiftyProxyTerminater extends NiftyProxyManager {
 		}
 	}
 
-	public void terminateInstances(String instanceId, NiftyServerClient client) {
+	public TaskResultStatus terminateInstances(String instanceId, NiftyServerClient client) {
 		try {
 			TerminateInstancesRequest request = mkTerminateRequest(instanceId);
 			TerminateInstancesResult result = client.terminateInstances(request);
 
 			if (result.getTerminatingInstances() != null) {
 				log.info("InstanceID {} => サーバ削除完了。", instanceId);
-				counter.addSuccessCnt();
+				return TaskResultStatus.SUCCESS;
 			} else {
 				log.error("InstanceID {} => サーバ削除失敗。", instanceId);
-				counter.addErrorCnt();
+				return TaskResultStatus.ERROR;
 			}
 
 		} catch (Exception e) {
 			log.error("InstanceID {} => サーバ削除失敗。", instanceId, e);
-			counter.addErrorCnt();
+			return TaskResultStatus.ERROR;
 		}
 	}
 
@@ -157,13 +161,11 @@ public class NiftyProxyTerminater extends NiftyProxyManager {
 
 			} else {
 				log.error("InstanceID {} => サーバステータス取得失敗。処理の対象外とします。", instanceId);
-				counter.addErrorCnt();
 				return false;
 			}
 
 		} catch (Exception e) {
 			log.error("InstanceID {} => サーバステータス取得失敗。処理の対象外とします。", instanceId);
-			counter.addErrorCnt();
 			return false;
 		}
 	}
@@ -188,9 +190,7 @@ public class NiftyProxyTerminater extends NiftyProxyManager {
 
 			Date end = new Date();
 			if (end.getTime() - start.getTime() > 60000) {
-				log.error("InstanceID {} => 1分経過してもサーバが停止しなかったため、処理の対象外とします。サーバのステータス[{}]",
-						instanceId, state);
-				counter.addErrorCnt();
+				log.error("InstanceID {} => 1分経過してもサーバが停止しなかったため、処理の対象外とします。サーバのステータス[{}]", instanceId, state);
 				return false;
 			}
 		}

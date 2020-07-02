@@ -1,4 +1,4 @@
-package com.nwt.constants;
+package com.nwt.nifty.constants;
 
 import java.util.List;
 

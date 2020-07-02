@@ -8,8 +8,7 @@ public class NiftyProxyCreatorTest {
 
 	@Test
 	public void testCreate() throws IOException {
-		//new NiftyProxyCreator().manage();
-		new NiftyProxyTerminater().manage();
+		// new NiftyProxyCreator().manage();
 	}
 
 }
