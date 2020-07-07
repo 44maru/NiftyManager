@@ -39,7 +39,7 @@ public class NiftyManagerMain {
 		} else if (args[0].equals("-d")) {
 			log.info("サーバ削除を開始します。");
 			ThreadPoolManager.allocateThreadPool(3, threadPoolSize);
-			taskList.add(new NiftyProxyShutdown());
+			taskList.add(new NiftyProxyShutdown(true));
 			taskList.add(new NiftyProxyStatusCheker(NiftyConstatns.SRV_STATE_STOPPED));
 			taskList.add(new NiftyProxyTerminater());
 

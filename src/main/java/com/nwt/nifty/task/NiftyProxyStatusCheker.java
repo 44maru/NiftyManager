@@ -68,7 +68,7 @@ public class NiftyProxyStatusCheker implements NiftyProxyTaskIF {
 		InstanceState state;
 		Date start = new Date();
 
-		log.info("InstanceID {} => サーバののステータスが{}になるまで、最大1分間待ちます。", instanceId);
+		log.info("InstanceID {} => サーバのステータスが{}になるまで、最大1分間待ちます。", instanceId, SERVER_STATUS_MAP.get(expectedStatus));
 
 		while (true) {
 			Thread.sleep(5000);
